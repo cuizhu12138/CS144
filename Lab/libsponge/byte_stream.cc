@@ -1,4 +1,5 @@
 #include "byte_stream.hh"
+
 #include <bits/stdc++.h>
 // Dummy implementation of a flow-controlled in-memory byte stream.
 
@@ -14,8 +15,7 @@ using namespace std;
 
 ByteStream::ByteStream(const size_t capacity) : _end(false), Buff(), Capacity(capacity) {}
 
-size_t ByteStream::write(const string &data)
-{
+size_t ByteStream::write(const string &data) {
     // 计算串长和剩余容量，计算能传几个
     size_t maxn = data.length();
     size_t limit = remaining_capacity();
@@ -31,8 +31,7 @@ size_t ByteStream::write(const string &data)
 }
 
 //! \param[in] len bytes will be copied from the output side of the buffer
-string ByteStream::peek_output(const size_t len) const
-{
+string ByteStream::peek_output(const size_t len) const {
     string ans;
 
     // limit 是 当前缓存区中字节的个数
@@ -52,13 +51,11 @@ string ByteStream::peek_output(const size_t len) const
 }
 
 //! \param[in] len bytes will be removed from the output side of the buffer
-void ByteStream::pop_output(const size_t len)
-{
+void ByteStream::pop_output(const size_t len) {
     size_t tmp = 0;
 
     // 保证缓冲区不空的情况下，直接pop即可
-    while (!buffer_empty() && tmp < len)
-    {
+    while (!buffer_empty() && tmp < len) {
         Buff.pop_back();
         tmp++;
         TotalRead++;
@@ -68,8 +65,7 @@ void ByteStream::pop_output(const size_t len)
 //! Read (i.e., copy and then pop) the next "len" bytes of the stream
 //! \param[in] len bytes will be popped and returned
 //! \returns a string
-std::string ByteStream::read(const size_t len)
-{
+std::string ByteStream::read(const size_t len) {
     string ans = peek_output(len);
 
     // 读取多少就pop多少

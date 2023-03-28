@@ -11,9 +11,41 @@
 class StreamReassembler {
   private:
     // Your code here -- add private members as necessary.
+    //[debug] show diaoyongcishu
+    int _x = 0;
 
-    ByteStream _output;  //!< The reassembled in-order byte stream
-    size_t _capacity;    //!< The maximum number of bytes
+    // 当前需要发送的报文的序号
+    size_t NowToWrite = 0;
+
+    //!< The reassembled in-order byte stream
+    ByteStream _output;
+
+    //!< The maximum number of bytes
+    size_t _capacity;
+
+    //  滑动窗口
+    std::vector<char> Cap;
+
+    // 记录右边第一位没有重组过的位置
+    std ::vector<int> DSU;
+
+    // 记录正在等待重组的字节数
+    size_t WaitingReass = 0;
+
+    // 未发送的第一个字节
+    size_t HaveNotSend = 0;
+
+    // 上一次跑的时候输出流中size是多少
+    size_t LastRunSize = 0;
+
+    // 整个流的最大下标
+    size_t MaxnIndexInStream = INT_MAX;
+
+    // 开启调试 True表示开启调试
+    bool Flag = false;
+
+    // 表示窗口边界是否赋值，True表示已经赋值
+    bool BoundaryFlag = false;
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
@@ -23,7 +55,7 @@ class StreamReassembler {
 
     //! \brief Receive a substring and write any newly contiguous bytes into the stream.
     //!
-    //! The StreamReassembler will stay within the memory limits of the `capacity`.
+    //! The StreamReassembler will stay within the memory limits of the `capacity`. 流重组程序将停留在“容量”的内存限制内
     //! Bytes that would exceed the capacity are silently discarded.
     //!
     //! \param data the substring
@@ -46,6 +78,25 @@ class StreamReassembler {
     //! \brief Is the internal state empty (other than the output stream)?
     //! \returns `true` if no substrings are waiting to be assembled
     bool empty() const;
+
+    //! \brief 把字节流里的位置映射到实际位置
+    int f(int x) { return x % _capacity; }
+
+    //! \brief 并查集寻找爹
+    int find(int x) {
+        if (DSU[x] == x)
+            return x;
+        else {
+            return DSU[x] = find(DSU[x]);
+        }
+    }
+
+    //! \brief 判断是0 就变成最大值
+    int Check(int x) {
+        if (x == 0)
+            return _capacity;
+        return x;
+    }
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH
