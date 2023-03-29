@@ -11,9 +11,6 @@
 class StreamReassembler {
   private:
     // Your code here -- add private members as necessary.
-    //[debug] show diaoyongcishu
-    int _x = 0;
-
     // 当前需要发送的报文的序号
     size_t NowToWrite = 0;
 
@@ -41,12 +38,14 @@ class StreamReassembler {
     // 整个流的最大下标
     size_t MaxnIndexInStream = INT_MAX;
 
-    // 开启调试 True表示开启调试
-    bool Flag = false;
-
     // 表示窗口边界是否赋值，True表示已经赋值
     bool BoundaryFlag = false;
 
+    // 开启调试 True表示开启调试
+    // bool Flag = false;
+
+    //[debug] 表示调用次数
+    // int _x = 0;
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
     //! \note This capacity limits both the bytes that have been reassembled,
