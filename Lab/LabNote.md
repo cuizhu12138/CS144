@@ -190,4 +190,56 @@ Lab内容：实现一个**流重组器**
 12\.窗口尾的DSU值不能直接指向下一位，需要特殊判断，否则在找爹的时候可能会死循环
 
 
+# Lab2 - the TCP receiver
 
+
+## 1 总览
+ 
+TCPreceiver 需要告诉发送方
+
+1.the index of the “first unassembled” byte -- 即第一个还没有被流重组的序号
+
+2\.the distance between the “first unassembled” index and the “first unacceptable” index. -- 第一个未重组的 到 窗口上限
+
+## 3.1 在64位下标 和 32位序列号之间转换
+1.TCP头中，序列号只有32位，但是字节流几乎是可以任意长的
+
+2\.为了安全和避免与旧的链接冲突，序列号都是随机开始的
+
+3\.逻辑开始和逻辑结束标志都会占一个序列号，注意TCP确保字节流的头和尾都能可靠的接受
+
+
+**wrap函数如下，记得对（1 << 32）取模即可**
+```c++
+WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
+    uint64_t tmp = 1ul << 32;
+    return WrappingInt32((isn + (n % tmp)).raw_value() % tmp);
+}
+```
+
+
+**unwrao函数如下，根据检查点的位置直接枚举前中后三段即可，数据为负数直接让他自然溢出就行**
+```c++
+uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
+    // DUMMY_CODE(n, isn, checkpoint);
+    uint64_t tmp = 1ul << 32;
+
+    uint64_t Add =
+        (n.raw_value() >= isn.raw_value()) ? n.raw_value() - isn.raw_value() : tmp - (isn.raw_value() - n.raw_value());
+
+    uint64_t ans1 = (checkpoint / tmp * tmp) + Add, ans2 = ((checkpoint / tmp + 1ul) * tmp) + Add,
+             ans3 = ((checkpoint / tmp - 1ul) * tmp) + Add;
+
+    uint64_t cmp1 = ans1 > checkpoint ? ans1 - checkpoint : checkpoint - ans1,
+             cmp2 = ans2 > checkpoint ? ans2 - checkpoint : checkpoint - ans2,
+             cmp3 = ans3 > checkpoint ? ans3 - checkpoint : checkpoint - ans3;
+
+    if (cmp3 <= cmp1 && cmp3 <= cmp2) {
+        return ans3;
+    } else if (cmp2 <= cmp1 && cmp2 <= cmp3) {
+        return ans2;
+    } else {
+        return ans1;
+    }
+}
+```
