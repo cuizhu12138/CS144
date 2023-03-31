@@ -96,6 +96,17 @@ class StreamReassembler {
             return _capacity;
         return x;
     }
+    // 得到上一个重组完成的下标
+    size_t GetLastRea() const {
+        if (NowToWrite == 0)
+            return 0;
+        else
+            return NowToWrite - 1;
+    }
+    // 得到窗口左右边界
+    size_t GetRight() const { return HaveNotSend + _capacity - 1; }
+    size_t GetNowToWrite() const { return NowToWrite; }
+    size_t GetLastRunSize() const { return LastRunSize; }
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH

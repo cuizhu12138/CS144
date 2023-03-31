@@ -11,12 +11,11 @@ class TCPSegment {
   private:
     TCPHeader _header{};
     Buffer _payload{};
-
   public:
-    //! \brief Parse the segment from a string
+    //! \brief Parse the segment from a string 从字符串中解析报文
     ParseResult parse(const Buffer buffer, const uint32_t datagram_layer_checksum = 0);
 
-    //! \brief Serialize the segment to a string
+    //! \brief Serialize the segment to a string 报文序列化为字符串
     BufferList serialize(const uint32_t datagram_layer_checksum = 0) const;
 
     //! \name Accessors

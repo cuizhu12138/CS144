@@ -22,6 +22,12 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
+    // [debug]
+    // cerr << "index = " << index << endl;
+    // cerr << "IN NowTowrite " << NowToWrite << endl;
+    // cerr << "data is " << data << endl;
+    // cerr << "data length is = " << data.length() << endl;
+
     // 寻找现在缓存区中的数据量
     size_t NowSize = _output.buffer_size();
     // 根据上一次缓存区内的数据量，维护现在发送到哪里，以此维护窗口位置
@@ -110,6 +116,9 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     }
     // 记录一下上一次缓存区中存了多少排序好但是没有读取的数据
     LastRunSize = _output.buffer_size();
+
+    // cerr << "OUT NowTowrite is = " << NowToWrite << endl;
+    // cerr << "OUT Have not send is = " << HaveNotSend << endl;
 }
 
 size_t StreamReassembler::unassembled_bytes() const { return WaitingReass; }

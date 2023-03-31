@@ -46,6 +46,7 @@ class Buffer {
 
     //! \brief Discard the first `n` bytes of the string (does not require a copy or move)
     //! \note Doesn't free any memory until the whole string has been discarded in all copies of the Buffer.
+    //! 有参数校验，调用的时候要注意n和字符串剩余长度取min，否则会抛出异常
     void remove_prefix(const size_t n);
 };
 

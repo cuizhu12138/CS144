@@ -201,7 +201,7 @@ TCPreceiver 需要告诉发送方
 
 2\.the distance between the “first unassembled” index and the “first unacceptable” index. -- 第一个未重组的 到 窗口上限
 
-## 3.1 在64位下标 和 32位序列号之间转换
+## 3.1 在64位下标 和 32位序列号之间转换（对序列号进行封装）
 1.TCP头中，序列号只有32位，但是字节流几乎是可以任意长的
 
 2\.为了安全和避免与旧的链接冲突，序列号都是随机开始的
@@ -218,7 +218,7 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 ```
 
 
-**unwrao函数如下，根据检查点的位置直接枚举前中后三段即可，数据为负数直接让他自然溢出就行**
+**unwrao函数如下，根据检查点的位置直接枚举前中后三段即可，在处理每一段具体位置的时候数据为负数直接让他自然溢出就行**
 ```c++
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     // DUMMY_CODE(n, isn, checkpoint);
@@ -243,3 +243,28 @@ uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     }
 }
 ```
+
+
+## 3.2 实现TCP接收器
+1\.接受来自peer的片段
+
+2\.使用流重组器对收到的片段进行重组
+
+3\.计算acknumber和Windows大小
+
+具体实现上讲:
+
+对于`segment_received`函数，你需要做以下这些事情
+
+1\.如果需要，请设置初始序列号。第一个到达的设置了SYN标志的段的序列号为初始序列号。为了在32位封装的seqnos/acknos和它们的绝对等价物之间进行转换，您需要跟踪它。(请注意，SYN标志只是头文件中的一个标志。同一段也可以携带数据，甚至可以设置FIN标志。)
+
+2\.将任何数据或流结束标记推到StreamReassembler。如果
+FIN标志设置在TCPSegment的报头中，这意味着负载的最后一个字节是整个流的最后一个字节。记住，StreamReassembler期望流索引从0开始;你将不得不unwarp序列号去做到这些
+
+对于`ackno函数`，你需要做以下事情
+
+1\.返回一个optional\<WrappingInt32>，其中包含接收端不知道的第一个字节的序列号。这是窗口的左边缘,即接收方感兴趣的第一个字节。如果ISN尚未设置，则返回一个空的optional
+
+对于`window_size函数`，你需要做以下事情
+
+1\.返回“第一个未组装”索引(与ackno对应的索引)与“第一个未接受(unacceptable)”索引之间的距离
