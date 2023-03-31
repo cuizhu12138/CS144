@@ -268,3 +268,82 @@ FIN标志设置在TCPSegment的报头中，这意味着负载的最后一个字�
 对于`window_size函数`，你需要做以下事情
 
 1\.返回“第一个未组装”索引(与ackno对应的索引)与“第一个未接受(unacceptable)”索引之间的距离
+
+
+
+**代码实现上：**
+
+1.不需要自己解析报文（卡了很久）
+
+2\.注意$syn$和$fin$的序号什么时候该加上去什么时候不该加
+
+3\.计算窗口的时候，要重新计算缓存区中读取了多少数据
+
+4\.没有收到$syn$之前，需要一直等待，且$syn$置1的报文也可能携带数据
+
+
+.cc文件如下
+```c++
+#include "tcp_receiver.hh"
+
+// Dummy implementation of a TCP receiver
+
+// For Lab 2, please replace with a real implementation that passes the
+// automated checks run by `make check_lab2`.
+
+template <typename... Targs>
+void DUMMY_CODE(Targs &&.../* unused */) {}
+
+using namespace std;
+
+void TCPReceiver::segment_received(const TCPSegment &seg) {
+    size_t SYNADD = 0;
+    // 如果syn置1 先标记一下syn已经收到，然后写入ISN，并且当前报文如果携带信息，需要特殊判断
+    if (seg.header().syn) {
+        SYNSET = true;
+        SYN = seg.header().seqno;
+        SYNADD = 1;
+    }
+    // 如果fin置1 标记一下
+    if (seg.header().fin) {
+        FINSET = true;
+    }
+    // 没收到过SYN则一直等待
+    if (!SYNSET)
+        return;
+
+    // 把报文携带的字符串传入流重组器
+    _reassembler.push_substring(seg.payload().copy(),
+                                unwrap(seg.header().seqno + SYNADD, SYN, _reassembler.GetLastRea()) - 1,
+                                seg.header().fin);
+}
+
+optional<WrappingInt32> TCPReceiver::ackno() const {
+    if (!SYNSET)
+        return {};
+    else {
+        // 判断一下是否整个字节流都已经重组完毕，如果是，就要算上fin，否则不需要
+        if (_reassembler.stream_out().input_ended())
+            return wrap(_reassembler.GetNowToWrite() + 2, SYN);
+        else
+            return wrap(_reassembler.GetNowToWrite() + 1, SYN);
+    }
+}
+/*
+Returns the distance between the “first unassembled” index (the index corresponding to the
+ackno) and the “first unacceptable” index.
+*/
+// 记得查看输出流的缓存区，判断这之间输出了多少字节，重新计算窗口
+size_t TCPReceiver::window_size() const {
+    return _reassembler.GetRight() - _reassembler.GetNowToWrite() + 1 +
+           (_reassembler.GetLastRunSize() - _reassembler.stream_out().buffer_size());
+}
+```
+.hh文件只是多加了两个变量
+```c++
+// syn FLAG
+WrappingInt32 SYN = WrappingInt32(0);
+bool SYNSET = false;
+// fin FLAG
+bool FINSET = false;
+```

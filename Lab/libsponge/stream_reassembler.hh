@@ -41,11 +41,6 @@ class StreamReassembler {
     // 表示窗口边界是否赋值，True表示已经赋值
     bool BoundaryFlag = false;
 
-    // 开启调试 True表示开启调试
-    // bool Flag = false;
-
-    //[debug] 表示调用次数
-    // int _x = 0;
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
     //! \note This capacity limits both the bytes that have been reassembled,
@@ -103,7 +98,7 @@ class StreamReassembler {
         else
             return NowToWrite - 1;
     }
-    // 得到窗口左右边界
+    // 得到窗口左右边界和上一次运行完之后往缓存区写了多少
     size_t GetRight() const { return HaveNotSend + _capacity - 1; }
     size_t GetNowToWrite() const { return NowToWrite; }
     size_t GetLastRunSize() const { return LastRunSize; }

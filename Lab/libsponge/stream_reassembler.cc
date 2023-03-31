@@ -22,12 +22,6 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
-    // [debug]
-    // cerr << "index = " << index << endl;
-    // cerr << "IN NowTowrite " << NowToWrite << endl;
-    // cerr << "data is " << data << endl;
-    // cerr << "data length is = " << data.length() << endl;
-
     // 寻找现在缓存区中的数据量
     size_t NowSize = _output.buffer_size();
     // 根据上一次缓存区内的数据量，维护现在发送到哪里，以此维护窗口位置
@@ -116,114 +110,8 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     }
     // 记录一下上一次缓存区中存了多少排序好但是没有读取的数据
     LastRunSize = _output.buffer_size();
-
-    // cerr << "OUT NowTowrite is = " << NowToWrite << endl;
-    // cerr << "OUT Have not send is = " << HaveNotSend << endl;
 }
 
 size_t StreamReassembler::unassembled_bytes() const { return WaitingReass; }
 
 bool StreamReassembler::empty() const { return WaitingReass == 0; }
-/*
-[debug]代码保存
-    // 维护DEBUG模式下输出格式 ===================================
-    if (data.length() < 10)
-        cerr << endl;
-
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // [debug] show if is succeffull update
-    if (data.length() < 10) {
-        cerr << "YES" << endl;
-        cerr << "nowtowrite is " << NowToWrite << endl;
-    }
-
-    // check if sucessful input ============================
-     if (Flag) {
-        cerr << "******************ans is " << ans << endl;
-        cerr << "ReturnNum " << ReturnNum << endl;
-    }
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    //[debug] show the string insert in===================
-     if (Flag) {
-    cerr << "Successful Insert!!\n";
-    cerr << "the string insert in is " << data[i - Head + SituationAdd] << endl;
-    cerr << "the fa[i] is " << DSU[Pre] << endl;
-    cerr << "the pre is " << Pre << endl;
-    }
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // check Pre ans fa[pre] ===============================
-    // if (Flag) {
-    //     DEBUG(Pre)
-    //     DEBUG(find(Pre))
-    //     DEBUG(DSU[Pre]);
-    // }
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    //[debug] show jump to where ========================
-    if (Flag)
-        cerr << "Dont need to Insert, Jump To the " << i << endl;
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // show the fa[Pre] and Pre ===========================
-        if (Flag) {
-        cerr << "fa[Pre] is " << DSU[Pre] << endl;
-        cerr << "Pre is " << Pre << endl;
-    }
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    //[debug] show the head and tail ==========================
-    if (Flag) {
-        DEBUG(Head) DEBUG(Tail);
-        cerr << "tmp2 = " << tmp2 << endl;
-        cerr << "Have Not Send = " << HaveNotSend << endl;
-    }
-
-    //  [debug] show the input string
-    if (Flag) {
-        cerr << "data length is " << data.length() << endl;
-        cerr << "truely data is " << data << endl;
-        cerr << "truely index is " << index << endl;
-    }
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // [debug] show NowTowrite ===========================
-    if (Flag)
-        cerr << "nowtowrite is " << NowToWrite << endl;
-
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // [debug] show diaoyongcishu ===========================
-    if (Flag) {
-        cerr << "这是第" << _x << "调用" << endl;
-        // [debug]
-        _x++;
-        cerr << "是否结束输入? " << eof << endl;
-        cerr << " 数据长度是 " << data.length() << endl;
-    }
-    //[debug]
-    if (Flag) {
-        cerr << "tmpoutput"
-             << ": HaveNotSend = " << HaveNotSend << endl;
-        cerr << "tmpoutput"
-             << ": _capacity =" << _capacity << endl;
-        cerr << "tmpoutput"
-             << ": HaveNotSend + _capacity - 1 = " << HaveNotSend + _capacity - 1 << endl;
-        cerr << "tmpoutput"
-             << ": index =" << index << endl;
-    }
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // 设置开始调试的条件======================================
-    if (data.length() == 1 && data[0] == 'b' && _x == 0)
-        Flag = 1;
-
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    // [debug] 进行初始化标志=================================
-    if (Flag)
-        cerr << "初始化" << endl;
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-*/
