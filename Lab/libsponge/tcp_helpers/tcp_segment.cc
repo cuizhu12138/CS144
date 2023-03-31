@@ -28,7 +28,6 @@ size_t TCPSegment::length_in_sequence_space() const {
 
 //! \param[in] datagram_layer_checksum pseudo-checksum from the lower-layer protocol
 BufferList TCPSegment::serialize(const uint32_t datagram_layer_checksum) const {
-    // 复制一份首部
     TCPHeader header_out = _header;
     header_out.cksum = 0;
 

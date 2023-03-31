@@ -1,3 +1,10 @@
+<!--
+ * @Author:       SJX
+ * @E-Mail:       540643428@qq.com
+ * @TODO:         Become Better
+ * @: ------------------------------------------------------
+ * @Date: 2023-03-31 18:53:15
+-->
 # Lab0 - Networking Warmup
 
 ## 2.1 手动获取网页文件(通过Telnet)
@@ -51,7 +58,6 @@ X-Your-Code-Is: 293654
 Content-length: 115
 Vary: Accept-Encoding
 Content-Type: text/plain
-
 Hello! You told us that your SUNet ID was "cuizhu12138". Please see the HTTP headers (above) for your secret code.
 ```
 ## 2.2 给自己发邮件
@@ -124,7 +130,6 @@ MyClass& operator=(const MyClass&) = delete;
 
 ```c++
 #include <cstdio>
-
 class TestClass
 {
 public:
@@ -136,7 +141,6 @@ int main(void)
     TestClass obj;
     obj.func(100);
     obj.func(100.0);
-
     return 0;
 }
 ```
@@ -223,17 +227,13 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     // DUMMY_CODE(n, isn, checkpoint);
     uint64_t tmp = 1ul << 32;
-
     uint64_t Add =
         (n.raw_value() >= isn.raw_value()) ? n.raw_value() - isn.raw_value() : tmp - (isn.raw_value() - n.raw_value());
-
     uint64_t ans1 = (checkpoint / tmp * tmp) + Add, ans2 = ((checkpoint / tmp + 1ul) * tmp) + Add,
              ans3 = ((checkpoint / tmp - 1ul) * tmp) + Add;
-
     uint64_t cmp1 = ans1 > checkpoint ? ans1 - checkpoint : checkpoint - ans1,
              cmp2 = ans2 > checkpoint ? ans2 - checkpoint : checkpoint - ans2,
              cmp3 = ans3 > checkpoint ? ans3 - checkpoint : checkpoint - ans3;
-
     if (cmp3 <= cmp1 && cmp3 <= cmp2) {
         return ans3;
     } else if (cmp2 <= cmp1 && cmp2 <= cmp3) {
@@ -285,17 +285,12 @@ FIN标志设置在TCPSegment的报头中，这意味着负载的最后一个字�
 .cc文件如下
 ```c++
 #include "tcp_receiver.hh"
-
 // Dummy implementation of a TCP receiver
-
 // For Lab 2, please replace with a real implementation that passes the
 // automated checks run by `make check_lab2`.
-
 template <typename... Targs>
 void DUMMY_CODE(Targs &&.../* unused */) {}
-
 using namespace std;
-
 void TCPReceiver::segment_received(const TCPSegment &seg) {
     size_t SYNADD = 0;
     // 如果syn置1 先标记一下syn已经收到，然后写入ISN，并且当前报文如果携带信息，需要特殊判断
@@ -311,13 +306,11 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     // 没收到过SYN则一直等待
     if (!SYNSET)
         return;
-
     // 把报文携带的字符串传入流重组器
     _reassembler.push_substring(seg.payload().copy(),
                                 unwrap(seg.header().seqno + SYNADD, SYN, _reassembler.GetLastRea()) - 1,
                                 seg.header().fin);
 }
-
 optional<WrappingInt32> TCPReceiver::ackno() const {
     if (!SYNSET)
         return {};
