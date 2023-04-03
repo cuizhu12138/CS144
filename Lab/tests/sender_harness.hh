@@ -387,6 +387,9 @@ class TCPSenderTestHarness {
     void collect_output() {
         while (not sender.segments_out().empty()) {
             outbound_segments.push(std::move(sender.segments_out().front()));
+            // [debug]
+            // std ::cerr << "************* \n************** \n what the fucking is = "
+            //         << sender.segments_out().front().payload().copy() << "`\n\n\n\n\n\n\n";
             sender.segments_out().pop();
         }
     }

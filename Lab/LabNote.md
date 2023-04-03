@@ -340,3 +340,21 @@ bool SYNSET = false;
 // fin FLAG
 bool FINSET = false;
 ```
+
+# Lab2 - the TCP sender
+
+## 3 - 实现TCPsender
+
+TCPsender需要做什么？
+
+1\.跟踪接收端的窗口大小(根据返回的ack和Window size)
+
+2\.尽可能的填充窗口，sender只会在输入队列空，或是在窗口满时停止发送
+
+3\.跟踪，并超时重传未完成传输的包
+
+## 3.1 - 如何实现超时重传？
+
+1\.TCPsender 会周期性的调用$tick$函数，表示时间的流逝
+
+2\.

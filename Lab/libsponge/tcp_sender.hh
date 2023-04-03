@@ -9,12 +9,60 @@
 #include <functional>
 #include <queue>
 
+using namespace std;
+
 //! \brief The "sender" part of a TCP implementation.
 
 //! Accepts a ByteStream, divides it up into segments and sends the
 //! segments, keeps track of which segments are still in-flight,
 //! maintains the Retransmission Timer, and retransmits in-flight
 //! segments if the retransmission timer expires.
+class TCPTimer {
+  private:
+    uint64_t RTO;
+    // 定义还剩多少时间
+    int RuningTime = 0;
+    // 标记Timer是否在运行 ture在运行
+    bool _IsItRuning = false;
+
+  public:
+    TCPTimer(const uint16_t OrignRTO) : RTO(OrignRTO) {}
+    //!@{ 计时器的开始与暂停
+
+    // Timer进行初始化
+    void TimerInit() {
+        RuningTime = RTO;
+        _IsItRuning = true;
+    }
+
+    // Timer暂停并且重置
+    void TimerStop() {
+        RuningTime = 0;
+        _IsItRuning = false;
+    }
+    //!@}
+
+    // 定义 时间的流逝
+    void RunOutTime(int TheTimeRuningOut) { RuningTime -= TheTimeRuningOut; }
+
+    // 定义 timer是否运行
+    bool IsItRuning() { return _IsItRuning; }
+
+    // 设置RTO
+    void SetRTO(uint64_t NewRTO) { RTO = NewRTO; }
+
+    // 使RTO翻倍
+    void DoubleRTo() { RTO *= 2; }
+
+    //!@{ 定义访问器
+
+    int TheTimeLeft() { return RuningTime; }
+
+    //!@}
+
+    //!@{ [debug]
+    //!@}
+};
 class TCPSender {
   private:
     //! our initial sequence number, the number for our SYN.
@@ -32,6 +80,30 @@ class TCPSender {
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
 
+    //! 记录连续重传的次数
+    unsigned int ConsecutiveRetransmissions = 0;
+
+    //! 记录没有收到ack的序列占的字节数 用(see TCPSegment::length_in_sequence_space())计数
+    size_t BytesInFlight = 0;
+
+    //! 定义Timer
+    TCPTimer Timer;
+
+    //! 定义接收方的窗口大小
+    size_t WindowSize = 1;
+
+    // 备份队列
+    std::queue<TCPSegment> _backup{};
+
+    // 是否发送过SYN
+    bool SYNSET = false;
+
+    //@!{ [debug]
+    int _used = 1;
+
+    int _ackused = 1;
+    //@!}
+
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
@@ -46,6 +118,7 @@ class TCPSender {
 
     //! \name Methods that can cause the TCPSender to send a segment
     //!@{
+    void SendCommonSegment(TCPSegment &segment);
 
     //! \brief A new acknowledgment was received
     void ack_received(const WrappingInt32 ackno, const uint16_t window_size);
@@ -76,6 +149,10 @@ class TCPSender {
     //! which will need to fill in the fields that are set by the TCPReceiver
     //! (ackno and window size) before sending.
     std::queue<TCPSegment> &segments_out() { return _segments_out; }
+
+    //! \brief 窗口大小访问器
+    size_t GetWindowSize() { return WindowSize; }
+
     //!@}
 
     //! \name What is the next sequence number? (used for testing)
@@ -86,6 +163,18 @@ class TCPSender {
 
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
+    //!@}
+
+    //! \name 发送数据报相关函数
+    //!@{
+    void Retransmission() {}
+
+    void IncrementRetransmission() { ConsecutiveRetransmissions++; }
+    //!@}
+
+    //! \name 各种状态
+    //!@{
+    bool Synset() { return SYNSET; }
     //!@}
 };
 
