@@ -158,7 +158,7 @@ int main() {
             string bigstring;
             for (unsigned int i = 0; i < TCPConfig::DEFAULT_CAPACITY; i++) {
                 bigstring.push_back(nicechars.at(rd() % nicechars.size()));
-            }   
+            }
 
             const size_t window_size = uniform_int_distribution<uint16_t>{50000, 63000}(rd);
 
@@ -168,7 +168,8 @@ int main() {
             test.execute(AckReceived{WrappingInt32{isn + 1}}.with_win(window_size));
             test.execute(ExpectState{TCPSenderStateSummary::SYN_ACKED});
 
-            for (unsigned int i = 0; i + TCPConfig::MAX_PAYLOAD_SIZE < min(bigstring.size(), window_size);i += TCPConfig::MAX_PAYLOAD_SIZE) {
+            for (unsigned int i = 0; i + TCPConfig::MAX_PAYLOAD_SIZE < min(bigstring.size(), window_size);
+                 i += TCPConfig::MAX_PAYLOAD_SIZE) {
                 const size_t expected_size = min(TCPConfig::MAX_PAYLOAD_SIZE, min(bigstring.size(), window_size) - i);
                 test.execute(ExpectSegment{}
                                  .with_no_flags()

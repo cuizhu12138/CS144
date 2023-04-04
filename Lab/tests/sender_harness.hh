@@ -61,9 +61,6 @@ struct ExpectState : public SenderExpectation {
     std::string description() const { return "in state `" + _state + "`"; }
     void execute(TCPSender &sender, std::queue<TCPSegment> &) const {
         if (TCPState::state_summary(sender) != _state) {
-            // cerr << "sender in fly is = " << sender.bytes_in_flight() << '\n';
-            // cerr << "debug is = " << sender.next_seqno_absolute() << " " << sender.stream_in().bytes_written() + 2
-            //      << sender.debug() << endl;
             throw SenderExpectationViolation("The TCPSender was in state `" + TCPState::state_summary(sender) +
                                              "`, but it was expected to be in state `" + _state + "`");
         }
@@ -390,9 +387,6 @@ class TCPSenderTestHarness {
     void collect_output() {
         while (not sender.segments_out().empty()) {
             outbound_segments.push(std::move(sender.segments_out().front()));
-            // [debug]
-            // std ::cerr << "************* \n************** \n what the fucking is = "
-            //         << sender.segments_out().front().payload().copy() << "`\n\n\n\n\n\n\n";
             sender.segments_out().pop();
         }
     }
