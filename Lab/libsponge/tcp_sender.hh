@@ -104,6 +104,9 @@ class TCPSender {
     // 是否发送过FIN
     bool FINSET = false;
 
+    // 标记接收方窗口是否为0
+    bool _window_size_is_0 = false;
+
     //@!{ [debug]
     int _used = 1;
 
@@ -188,6 +191,8 @@ class TCPSender {
     //!@{
     bool Synset() { return SYNSET; }
     //!@}
+
+    size_t debug() { return _abs_re_seqno; }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH
