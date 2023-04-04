@@ -95,8 +95,14 @@ class TCPSender {
     // 备份队列
     std::queue<TCPSegment> _backup{};
 
+    // 接受方接受到的绝对下标
+    uint64_t _abs_re_seqno{0};
+
     // 是否发送过SYN
     bool SYNSET = false;
+
+    // 是否发送过FIN
+    bool FINSET = false;
 
     //@!{ [debug]
     int _used = 1;
@@ -167,7 +173,13 @@ class TCPSender {
 
     //! \name 发送数据报相关函数
     //!@{
-    void Retransmission() {}
+    void Retransmission() {
+        if (_backup.empty())
+            return;
+        _segments_out.push(_backup.front());
+
+        // cerr << "retransmiss = " << _backup.front().payload().copy() << '\n';
+    }
 
     void IncrementRetransmission() { ConsecutiveRetransmissions++; }
     //!@}

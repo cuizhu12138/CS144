@@ -29,7 +29,7 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return BytesInFlight; }
 
 void TCPSender::fill_window() {
-    size_t ReaminWindows = WindowSize;
+    size_t ReaminWindows = WindowSize + _abs_re_seqno - _next_seqno;
 
     TCPSegment spsegment;
 
@@ -37,28 +37,28 @@ void TCPSender::fill_window() {
         spsegment.header().syn = 1;
         SendCommonSegment(spsegment);
         SYNSET = true;
-    } else if (_stream.eof()) {
+    } else if (_stream.eof() && (!FINSET)) {
         spsegment.header().fin = 1;
         SendCommonSegment(spsegment);
+        FINSET = true;
+    } else if (_stream.eof()) {
+        return;
     } else {
-        while (ReaminWindows > 0) {
-            if (_stream.buffer_empty())
-                break;
-
+        // while (ReaminWindows > 0 && (!_stream.buffer_empty())) {
+        while (ReaminWindows) {
             TCPSegment segment;
 
             // 计算一下可以传输多少字节
             size_t limit = min(TCPConfig ::MAX_PAYLOAD_SIZE, ReaminWindows);
-            limit = min(limit,_stream.buffer_size());
 
             segment.payload() = Buffer(std::move(_stream.read(limit)));
 
-            segment.header().seqno = wrap(_next_seqno, _isn);
-
-            // 维护剩余窗口大小
-            ReaminWindows -= segment.length_in_sequence_space();
+            if (segment.length_in_sequence_space() == 0)
+                return;
 
             SendCommonSegment(segment);
+
+            ReaminWindows = WindowSize + _abs_re_seqno - _next_seqno;
         }
     }
 }
@@ -66,54 +66,40 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    // [debug]
-    cerr << "the " << _ackused << " ack received" << endl;
-    cerr << "the ack number is " << ackno.raw_value() << endl;
-    // 维护接收方窗口大小
-    WindowSize = window_size;
+    // 维护接收方窗口大小,窗口为0视为1
+    WindowSize = window_size == 0 ? 1 : window_size;
 
     //  计算当前ackno对于的absackno
     uint64_t NowReceive = unwrap(ackno, _isn, _next_seqno);
-
-    // [debug]
-    cerr << "ack_receive -> nowreceive = " << NowReceive << endl;
 
     // true表示有新数据被接收方收到
     bool FlagAboutNewData = false;
 
     // 对于已经完全收到的段，全部pop
     while (!_backup.empty()) {
-        cerr << "flag\n\n";
-
         TCPSegment &tcpsegment = _backup.front();
         uint64_t Thisabsseqno =
             unwrap(tcpsegment.header().seqno, _isn, _next_seqno) + tcpsegment.length_in_sequence_space() - 1;
-
-        // [debug]
-        cerr << "ack_receive -> back up absseqno = " << Thisabsseqno << endl;
 
         if (NowReceive > Thisabsseqno) {
             _backup.pop();
             BytesInFlight -= tcpsegment.length_in_sequence_space();
             FlagAboutNewData = true;
         } else {
-            Retransmission();
             break;
         }
     }
-    // [debug]
-    cerr << "ack_receive -> flag = " << FlagAboutNewData << endl;
 
     if (FlagAboutNewData) {
         Timer.SetRTO(_initial_retransmission_timeout);
         Timer.TimerInit();
-
         ConsecutiveRetransmissions = 0;
-        fill_window();
     }
 
-    // [debug]
-    cerr << "ack received is over \n*************************\n\n\n\n" << endl;
+    if (ackno.raw_value() + window_size > _next_seqno && (!FINSET)) {
+        // cerr << "ack -> fill\n";
+        fill_window();
+    }
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
@@ -121,8 +107,9 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
     if (!Timer.IsItRuning())
         return;
     Timer.RunOutTime(ms_since_last_tick);
+
     // 如果时间耗尽
-    if (Timer.TheTimeLeft() <= 0) {
+    if (Timer.TheTimeLeft() <= 0 && Timer.IsItRuning()) {
         // 超时重传
         Retransmission();
         // 出现连续重传
