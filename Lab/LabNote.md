@@ -341,9 +341,9 @@ bool SYNSET = false;
 bool FINSET = false;
 ```
 
-# Lab2 - the TCP sender
+# Lab3 - the TCP sender
 
-## 3 - 实现TCPsender
+## 3 - TCPsender
 
 TCPsender需要做什么？
 
@@ -357,4 +357,73 @@ TCPsender需要做什么？
 
 1\.TCPsender 会周期性的调用$tick$函数，表示时间的流逝
 
-2\.
+2\.构造 TCPSender 时，会为其提供一个参数，告诉它重传超时 (RTO) 的“初始值”。 RTO 是重新发送未完成的 TCP 段之前等待的毫秒数。 RTO 的值会随着时间的推移而变化，但“初始值”保持不变。起始代码将 RTO 的“初始值”保存在名为初始重传超时的成员变量中。
+
+3\.您将实现重传计时器：一个可以在特定时间启动的警报，一旦 RTO 过去，警报就会响起（或“过期”）。我们强调，这种时间流逝的概念来自被调用的 tick 方法——而不是通过获取一天中的实际时间。
+
+4\.每次发送包含数据（序列空间中的非零长度）的段（无论是第一次还是重传），如果定时器未运行，则启动它运行，以便它在 RTO 毫秒后到期（对于当前值保留时间）。通过“过期”，我们的意思是时间将在未来用完一定的毫秒数。
+
+5\.当所有未完成的数据都被确认后，停止重传计时器。
+
+6\.如果调用 tick 并且重传计时器已过期：
+
+ (a) 重传尚未被 TCP 接收方完全确认的最早（最低序列号）段。您需要将未完成的段存储在一些内部数据结构中，以便可以执行此操作。 
+ 
+ (b) 如果窗口大小不为零： 
+ > 1．跟踪连续重传的次数，并增加它，因为你刚刚重传了一些东西。您的 TCPConnection 将使用此信息来确定连接是否无望（连续重传次数过多）并需要中止  
+ > 2.将 RTO 的价值翻倍。这被称为“指数退避”——它会减慢糟糕网络上的重传速度，以避免进一步破坏工作。 
+ 
+ (c) 重置重传计时器并启动它，使其在 RTO 毫秒后到期（考虑到您可能刚刚将 RTO 的值加倍！）。
+
+7\.当接收方向发送方发送确认成功接收新数据的 ackno 时（ackno 反映的绝对序列号大于任何先前的 ackno）： 
+
+(a) 将 RTO 设置回其“初始值”。 
+
+(b) 如果发送方有任何未完成的数据，重新启动重传定时器，使其在 RTO 毫秒（对于 RTO 的当前值）后到期。
+
+ (c) 将“连续重传”的计数重置为零。
+
+## 3.2 - 实现TCPSender(文档摆一下)
+
+1\. void fill window()
+
+>The TCPSender is asked to fill the window : it reads from its input ByteStream and
+sends as many bytes as possible in the form of TCPSegments, as long as there are new
+bytes to be read and space available in the window.
+You’ll want to make sure that every TCPSegment you send fits fully inside the receiver’s
+window. Make each individual TCPSegment as big as possible, but no bigger than the
+value given by TCPConfig::MAX PAYLOAD SIZE (1452 bytes).
+You can use the TCPSegment::length in sequence space() method to count the total
+number of sequence numbers occupied by a segment. Remember that the SYN and
+FIN flags also occupy a sequence number each, which means that they occupy space in
+the window.
+
+>**What should I do if the window size is zero?** If the receiver has announced a
+window size of zero, the fill window method should act like the window size is
+one. The sender might end up sending a single byte that gets rejected (and not
+acknowledged) by the receiver, but this can also provoke the receiver into sending
+a new acknowledgment segment where it reveals that more space has opened up
+in its window. Without this, the sender would never learn that it was allowed to
+start sending again.
+
+2\.void ack received( const WrappingInt32 ackno, const uint16 t window size)
+
+>A segment is received from the receiver, conveying the new left (= ackno) and right (=
+ackno + window size) edges of the window. The TCPSender should look through its
+collection of outstanding segments and remove any that have now been fully acknowl-
+edged (the ackno is greater than all of the sequence numbers in the segment). The
+TCPSender should fill the window again if new space has opened up.
+
+3\.void tick( const size t ms since last tick ):
+
+>Time has passed — a certain number of milliseconds since the last time this method
+was called. The sender may need to retransmit an outstanding segment.
+
+4\. void send empty segment(): 
+
+>The TCPSender should generate and send a TCPSegment
+that has zero length in sequence space, and with the sequence number set correctly.
+This is useful if the owner (the TCPConnection that you’re going to implement next
+week) wants to send an empty ACK segment.
+Note: a segment like this one, which occupies no sequence numbers, doesn’t need to be
+kept track of as “outstanding” and won’t ever be retransmitted.

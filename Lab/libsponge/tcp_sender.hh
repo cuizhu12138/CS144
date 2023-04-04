@@ -57,11 +57,6 @@ class TCPTimer {
     //!@{ 定义访问器
 
     int TheTimeLeft() { return RuningTime; }
-
-    //!@}
-
-    //!@{ [debug]
-    //!@}
 };
 class TCPSender {
   private:
@@ -106,12 +101,6 @@ class TCPSender {
 
     // 标记接收方窗口是否为0
     bool _window_size_is_0 = false;
-
-    //@!{ [debug]
-    int _used = 1;
-
-    int _ackused = 1;
-    //@!}
 
   public:
     //! Initialize a TCPSender
@@ -180,19 +169,12 @@ class TCPSender {
         if (_backup.empty())
             return;
         _segments_out.push(_backup.front());
-
-        // cerr << "retransmiss = " << _backup.front().payload().copy() << '\n';
     }
 
     void IncrementRetransmission() { ConsecutiveRetransmissions++; }
     //!@}
 
-    //! \name 各种状态
-    //!@{
     bool Synset() { return SYNSET; }
-    //!@}
-
-    size_t debug() { return _abs_re_seqno; }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

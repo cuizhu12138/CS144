@@ -33,6 +33,7 @@ void TCPSender::fill_window() {
 
     TCPSegment spsegment;
 
+    //  如果SYN还没发过
     if (!SYNSET) {
         spsegment.header().syn = 1;
         SendCommonSegment(spsegment);
@@ -53,10 +54,12 @@ void TCPSender::fill_window() {
             // 计算一下可以传输多少字节
             size_t limit = min(TCPConfig ::MAX_PAYLOAD_SIZE, ReaminWindows);
 
+            // 加入负载
             segment.payload() = Buffer(std::move(_stream.read(limit)));
 
             size_t _length = segment.length_in_sequence_space();
 
+            // 空串不发
             if (_length == 0)
                 return;
 
@@ -66,8 +69,10 @@ void TCPSender::fill_window() {
                 FINSET = true;
             }
 
+            // 发送正常的报文
             SendCommonSegment(segment);
 
+            // 重新计算剩余窗口
             ReaminWindows = WindowSize + _abs_re_seqno - _next_seqno;
         }
     }
@@ -76,8 +81,6 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    cerr << "ack is = " << ackno.raw_value() << endl;
-
     //  计算当前ackno对于的absackno
     uint64_t NowReceive = unwrap(ackno, _isn, _next_seqno);
 
@@ -105,14 +108,13 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
         if (NowReceive > Thisabsseqno) {
             BytesInFlight -= tcpsegment.length_in_sequence_space();
-            cerr << "-" << tcpsegment.length_in_sequence_space() << ' ' << BytesInFlight << endl;
             FlagAboutNewData = true;
             _backup.pop();
         } else {
             break;
         }
     }
-
+    // 有新数据被收到的话
     if (FlagAboutNewData) {
         Timer.SetRTO(_initial_retransmission_timeout);
         Timer.TimerInit();
@@ -169,7 +171,6 @@ void TCPSender::SendCommonSegment(TCPSegment &segment) {
     // 维护序列号和未到达序号数
     _next_seqno += segment.length_in_sequence_space();
     BytesInFlight += segment.length_in_sequence_space();
-    cerr << "+" << segment.length_in_sequence_space() << " " << BytesInFlight << endl;
 
     // 塞入发送队列和备份队列
     _segments_out.push(segment);
