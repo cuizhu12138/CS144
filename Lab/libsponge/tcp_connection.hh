@@ -21,6 +21,27 @@ class TCPConnection {
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
 
+    // 最后一次收到报文的时间
+    size_t LastSegmentReceived{0};
+
+    // 标志着连接是否存活
+    bool Alive{true};
+
+    // linger计时器
+    size_t LingerTimer{0};
+
+    // 输入流是否关闭
+    bool InComeStream{false};
+
+    // 输出流是否关闭
+    bool OutComeStream{false};
+
+    // 是否开始逗留
+    bool LingerBegin{false};
+
+    // 是否发送过SYN
+    bool SYNSET{false};
+
   public:
     //! \name "Input" interface for the writer
     //!@{
@@ -94,6 +115,59 @@ class TCPConnection {
     TCPConnection(const TCPConnection &other) = delete;
     TCPConnection &operator=(const TCPConnection &other) = delete;
     //!@}
+
+    //!@{
+    //! \brief 切断连接
+    void SendRSTSegment() {
+        // sender制造一个空报文
+        _sender.send_empty_segment();
+
+        // 取出空报文，把RST改true
+        TCPSegment seg = _sender.segments_out().front();
+        _sender.segments_out().pop();
+        seg.header().rst = true;
+        FillWithACK(seg);
+        _segments_out.push(seg);
+    }
+    void CutConnection() {
+        _receiver.stream_out().set_error();
+        _sender.stream_in().set_error();
+        Alive = false;
+    }
+    //!@}
+
+    //!@{
+
+    void FillWithACK(TCPSegment &seg) {
+        if (!_receiver.ackno().has_value())
+            return;
+        seg.header().ack = true;
+        seg.header().ackno = _receiver.ackno().value();
+        seg.header().win = _receiver.window_size();
+    }
+
+    void SenderFillWindow() {
+        _sender.fill_window();
+        // 直接从sender发送队列里拿要的报文
+        TCPSegment seg;
+        while (!_sender.segments_out().empty()) {
+            seg = _sender.segments_out().front();
+            _sender.segments_out().pop();
+            FillWithACK(seg);
+            _segments_out.push(seg);
+        }
+    }
+    void SenderReflectAcknoWin() {
+        _sender.send_empty_segment();
+        // 取出空报文，把RST改true
+        TCPSegment seg = _sender.segments_out().front();
+        _sender.segments_out().pop();
+        FillWithACK(seg);
+        _segments_out.push(seg);
+    }
+    //!@}
+
+    bool check_inbound_ended();
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_FACTORED_HH

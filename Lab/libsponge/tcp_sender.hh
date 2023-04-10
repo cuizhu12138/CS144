@@ -19,7 +19,7 @@ using namespace std;
 //! segments if the retransmission timer expires.
 class TCPTimer {
   private:
-    uint64_t RTO;
+    int RTO;
     // 定义还剩多少时间
     int RuningTime = 0;
     // 标记Timer是否在运行 ture在运行
@@ -57,6 +57,8 @@ class TCPTimer {
     //!@{ 定义访问器
 
     int TheTimeLeft() { return RuningTime; }
+
+    int GetRTO() { return RTO; }
 };
 class TCPSender {
   private:
@@ -101,6 +103,8 @@ class TCPSender {
 
     // 标记接收方窗口是否为0
     bool _window_size_is_0 = false;
+
+    
 
   public:
     //! Initialize a TCPSender
@@ -147,6 +151,7 @@ class TCPSender {
     //! which will need to fill in the fields that are set by the TCPReceiver
     //! (ackno and window size) before sending.
     std::queue<TCPSegment> &segments_out() { return _segments_out; }
+    std::queue<TCPSegment> &back_up() { return _backup; }
 
     //! \brief 窗口大小访问器
     size_t GetWindowSize() { return WindowSize; }

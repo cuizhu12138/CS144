@@ -24,11 +24,15 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
     , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity)
-    , Timer(retx_timeout) {}
+    , Timer(retx_timeout) {
+    cout << _initial_retransmission_timeout << endl;
+}
 
 uint64_t TCPSender::bytes_in_flight() const { return BytesInFlight; }
 
 void TCPSender::fill_window() {
+    assert(_stream.error());
+
     size_t ReaminWindows = WindowSize + _abs_re_seqno - _next_seqno;
 
     TCPSegment spsegment;
@@ -114,10 +118,13 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
             break;
         }
     }
+    if (_backup.empty())
+        Timer.TimerStop();
     // 有新数据被收到的话
     if (FlagAboutNewData) {
         Timer.SetRTO(_initial_retransmission_timeout);
-        Timer.TimerInit();
+        if (!_backup.empty())
+            Timer.TimerInit();
         ConsecutiveRetransmissions = 0;
     }
     fill_window();
@@ -132,7 +139,8 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
     // 如果时间耗尽
     if (Timer.TheTimeLeft() <= 0 && Timer.IsItRuning()) {
         // 超时重传
-        Retransmission();
+        if (ConsecutiveRetransmissions != TCPConfig::MAX_RETX_ATTEMPTS)
+            Retransmission();
 
         if (!_window_size_is_0) {
             // 出现连续重传
@@ -149,15 +157,6 @@ unsigned int TCPSender::consecutive_retransmissions() const { return Consecutive
 
 void TCPSender::send_empty_segment() {
     TCPSegment tcpsegment;
-
-    // 从输出流中读取需要传输的字节
-    string payloadstring = "";
-
-    // 构造buff
-    Buffer payload(move(payloadstring));
-
-    // 传入数据
-    tcpsegment.payload() = payload;
 
     tcpsegment.header().seqno = wrap(_next_seqno, _isn);
 
