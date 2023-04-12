@@ -2,7 +2,7 @@
 #define SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH
 
 #include "byte_stream.hh"
-
+typedef long long ll;
 #include <cstdint>
 #include <string>
 
@@ -24,19 +24,13 @@ class StreamReassembler {
     std::vector<char> Cap;
 
     // 记录右边第一位没有重组过的位置
-    std ::vector<int> DSU;
+    std::vector<ll> DSU;
 
     // 记录正在等待重组的字节数
     size_t WaitingReass = 0;
 
-    // 未发送的第一个字节
-    size_t HaveNotSend = 0;
-
-    // 上一次跑的时候输出流中size是多少
-    size_t LastRunSize = 0;
-
     // 整个流的最大下标
-    size_t MaxnIndexInStream = INT_MAX;
+    ll MaxnIndexInStream = -1;
 
     // 表示窗口边界是否赋值，True表示已经赋值
     bool BoundaryFlag = false;
@@ -74,34 +68,11 @@ class StreamReassembler {
     bool empty() const;
 
     //! \brief 把字节流里的位置映射到实际位置
-    int f(int x) { return x % _capacity; }
+    ll f(ll x) { return x % _capacity; }
 
     //! \brief 并查集寻找爹
-    int find(int x) {
-        if (DSU[x] == x)
-            return x;
-        else {
-            return DSU[x] = find(DSU[x]);
-        }
-    }
-
-    //! \brief 判断是0 就变成最大值
-    int Check(int x) {
-        if (x == 0)
-            return _capacity;
-        return x;
-    }
-    // 得到上一个重组完成的下标
-    size_t GetLastRea() const {
-        if (NowToWrite == 0)
-            return 0;
-        else
-            return NowToWrite - 1;
-    }
-    // 得到窗口左右边界和上一次运行完之后往缓存区写了多少
-    size_t GetRight() const { return HaveNotSend + _capacity - 1; }
-    size_t GetNowToWrite() const { return NowToWrite; }
-    size_t GetLastRunSize() const { return LastRunSize; }
+    ll find(ll x);
+    size_t ack_index() const;
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH

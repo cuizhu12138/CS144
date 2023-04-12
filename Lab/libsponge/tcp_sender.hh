@@ -17,49 +17,6 @@ using namespace std;
 //! segments, keeps track of which segments are still in-flight,
 //! maintains the Retransmission Timer, and retransmits in-flight
 //! segments if the retransmission timer expires.
-class TCPTimer {
-  private:
-    int RTO;
-    // 定义还剩多少时间
-    int RuningTime = 0;
-    // 标记Timer是否在运行 ture在运行
-    bool _IsItRuning = false;
-
-  public:
-    TCPTimer(const uint16_t OrignRTO) : RTO(OrignRTO) {}
-    //!@{ 计时器的开始与暂停
-
-    // Timer进行初始化
-    void TimerInit() {
-        RuningTime = RTO;
-        _IsItRuning = true;
-    }
-
-    // Timer暂停并且重置
-    void TimerStop() {
-        RuningTime = 0;
-        _IsItRuning = false;
-    }
-    //!@}
-
-    // 定义 时间的流逝
-    void RunOutTime(int TheTimeRuningOut) { RuningTime -= TheTimeRuningOut; }
-
-    // 定义 timer是否运行
-    bool IsItRuning() { return _IsItRuning; }
-
-    // 设置RTO
-    void SetRTO(uint64_t NewRTO) { RTO = NewRTO; }
-
-    // 使RTO翻倍
-    void DoubleRTo() { RTO *= 2; }
-
-    //!@{ 定义访问器
-
-    int TheTimeLeft() { return RuningTime; }
-
-    int GetRTO() { return RTO; }
-};
 class TCPSender {
   private:
     //! our initial sequence number, the number for our SYN.
@@ -80,20 +37,11 @@ class TCPSender {
     //! 记录连续重传的次数
     unsigned int ConsecutiveRetransmissions = 0;
 
-    //! 记录没有收到ack的序列占的字节数 用(see TCPSegment::length_in_sequence_space())计数
-    size_t BytesInFlight = 0;
-
-    //! 定义Timer
-    TCPTimer Timer;
-
-    //! 定义接收方的窗口大小
-    size_t WindowSize = 1;
+    //! 记录没有收到ack的序列占的字节数 用(TCPSegment::length_in_sequence_space())计数
+    uint64_t BytesInFlight = 0;
 
     // 备份队列
     std::queue<TCPSegment> _backup{};
-
-    // 接受方接受到的绝对下标
-    uint64_t _abs_re_seqno{0};
 
     // 是否发送过SYN
     bool SYNSET = false;
@@ -101,10 +49,14 @@ class TCPSender {
     // 是否发送过FIN
     bool FINSET = false;
 
-    // 标记接收方窗口是否为0
-    bool _window_size_is_0 = false;
+    // 定义接收方的窗口大小和剩余
+    uint16_t _receiver_window_size = 0;
+    uint16_t _receiver_free_space = 0;
 
-    
+    // 定义timer
+    unsigned int _rto = 0;
+    unsigned int _time_elapsed = 0;
+    bool _timer_running = false;
 
   public:
     //! Initialize a TCPSender
@@ -152,10 +104,6 @@ class TCPSender {
     //! (ackno and window size) before sending.
     std::queue<TCPSegment> &segments_out() { return _segments_out; }
     std::queue<TCPSegment> &back_up() { return _backup; }
-
-    //! \brief 窗口大小访问器
-    size_t GetWindowSize() { return WindowSize; }
-
     //!@}
 
     //! \name What is the next sequence number? (used for testing)
@@ -166,20 +114,8 @@ class TCPSender {
 
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
-    //!@}
-
-    //! \name 发送数据报相关函数
-    //!@{
-    void Retransmission() {
-        if (_backup.empty())
-            return;
-        _segments_out.push(_backup.front());
-    }
-
-    void IncrementRetransmission() { ConsecutiveRetransmissions++; }
-    //!@}
-
-    bool Synset() { return SYNSET; }
+    // 判断不可能的ack
+    bool _ack_valid(uint64_t abs_ackno);
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

@@ -1,15 +1,14 @@
 #include "tcp_sender.hh"
 
 #include "tcp_config.hh"
-#include "tcp_segment.hh"
-#include "wrapping_integers.hh"
 
 #include <random>
+// #include <iostream>
+#include <algorithm>
 
-#define endl "\n"
 // Dummy implementation of a TCP sender
 
-// For Lab 3, please replace with a real implementation that passes them
+// For Lab 3, please replace with a real implementation that passes the
 // automated checks run by `make check_lab3`.
 
 template <typename... Targs>
@@ -24,60 +23,56 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
     , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity)
-    , Timer(retx_timeout) {
-    cout << _initial_retransmission_timeout << endl;
-}
+    , _rto{retx_timeout} {}
 
 uint64_t TCPSender::bytes_in_flight() const { return BytesInFlight; }
 
 void TCPSender::fill_window() {
-    assert(_stream.error());
-
-    size_t ReaminWindows = WindowSize + _abs_re_seqno - _next_seqno;
-
-    TCPSegment spsegment;
-
-    //  如果SYN还没发过
+    // 如果没发送过syn
     if (!SYNSET) {
-        spsegment.header().syn = 1;
-        SendCommonSegment(spsegment);
         SYNSET = true;
-    } else if (_stream.eof() && (FINSET)) {
+        TCPSegment seg;
+        seg.header().syn = true;
+        SendCommonSegment(seg);
         return;
     }
-    // 因为输入流可以随时停止，可能上次发完就停，所以可会有单独的fin出现
-    else if (_stream.eof() && (!FINSET) && ReaminWindows > 0) {
-        spsegment.header().fin = 1;
-        SendCommonSegment(spsegment);
-        FINSET = true;
+    // 如果syn没被ack过，直接返回
+    if (!_backup.empty() && _backup.front().header().syn)
         return;
-    } else {
-        while (ReaminWindows) {
-            TCPSegment segment;
-
-            // 计算一下可以传输多少字节
-            size_t limit = min(TCPConfig ::MAX_PAYLOAD_SIZE, ReaminWindows);
-
-            // 加入负载
-            segment.payload() = Buffer(std::move(_stream.read(limit)));
-
-            size_t _length = segment.length_in_sequence_space();
-
-            // 空串不发
-            if (_length == 0)
-                return;
-
-            // fin占用一个序号，多发fin会超过窗口
-            if (_stream.eof() && _length < ReaminWindows) {
-                segment.header().fin = 1;
+    // 流如果为空但是没有结束输入，返回
+    if (!_stream.buffer_size() && !_stream.eof())
+        return;
+    // 如果已经发送过FIN，返回
+    if (FINSET)
+        return;
+    // 如果接受者窗口大小不是0
+    if (_receiver_window_size) {
+        // 还有空间
+        while (_receiver_free_space) {
+            TCPSegment seg;
+            size_t payload_size = min({_stream.buffer_size(),
+                                       static_cast<size_t>(_receiver_free_space),
+                                       static_cast<size_t>(TCPConfig::MAX_PAYLOAD_SIZE)});
+            seg.payload() = Buffer{_stream.read(payload_size)};
+            // 流结束，并且接收方的窗口还有多余的空间（fin占一个序号）
+            if (_stream.eof() && static_cast<size_t>(_receiver_free_space) > payload_size) {
+                seg.header().fin = true;
                 FINSET = true;
             }
-
-            // 发送正常的报文
-            SendCommonSegment(segment);
-
-            // 重新计算剩余窗口
-            ReaminWindows = WindowSize + _abs_re_seqno - _next_seqno;
+            SendCommonSegment(seg);
+            if (_stream.buffer_empty())
+                break;
+        }
+    } else if (_receiver_free_space == 0) {
+        // 0窗口检测报文只发送一次（tick会重发）———— 0 窗口视为 1大小
+        TCPSegment seg;
+        if (_stream.eof()) {
+            seg.header().fin = true;
+            FINSET = true;
+            SendCommonSegment(seg);
+        } else if (!_stream.buffer_empty()) {
+            seg.payload() = Buffer{_stream.read(1)};
+            SendCommonSegment(seg);
         }
     }
 }
@@ -85,106 +80,97 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    //  计算当前ackno对于的absackno
-    uint64_t NowReceive = unwrap(ackno, _isn, _next_seqno);
+    // 计算当前的标记
+    uint64_t abs_ackno = unwrap(ackno, _isn, _next_seqno);
 
-    // 不可能的ack要忽略
-    if (NowReceive > _next_seqno)
+    // 如果ack非法，不管
+    if (!_ack_valid(abs_ackno))
         return;
 
-    // 维护接收方窗口是否为0
-    _window_size_is_0 = (window_size == 0 ? true : false);
+    // 重置接收方空间和剩余空间
+    _receiver_window_size = window_size;
+    _receiver_free_space = window_size;
 
-    // 维护接收方窗口大小,窗口为0视为1
-    WindowSize = (window_size == 0 ? 1 : window_size);
-
-    // 现在收到了ack在哪
-    _abs_re_seqno = NowReceive;
-
-    // true表示有新数据被接收方收到
-    bool FlagAboutNewData = false;
-
-    // 对于已经完全收到的段，全部pop
+    // pop已经完整收到的报文
     while (!_backup.empty()) {
-        TCPSegment &tcpsegment = _backup.front();
-        uint64_t Thisabsseqno =
-            unwrap(tcpsegment.header().seqno, _isn, _next_seqno) + tcpsegment.length_in_sequence_space() - 1;
-
-        if (NowReceive > Thisabsseqno) {
-            BytesInFlight -= tcpsegment.length_in_sequence_space();
-            FlagAboutNewData = true;
+        TCPSegment seg = _backup.front();
+        if (unwrap(seg.header().seqno, _isn, _next_seqno) + seg.length_in_sequence_space() <= abs_ackno) {
+            BytesInFlight -= seg.length_in_sequence_space();
             _backup.pop();
+            _time_elapsed = 0;
+            _rto = _initial_retransmission_timeout;
+            ConsecutiveRetransmissions = 0;
         } else {
             break;
         }
     }
-    if (_backup.empty())
-        Timer.TimerStop();
-    // 有新数据被收到的话
-    if (FlagAboutNewData) {
-        Timer.SetRTO(_initial_retransmission_timeout);
-        if (!_backup.empty())
-            Timer.TimerInit();
-        ConsecutiveRetransmissions = 0;
+
+    // 没有收到ack的包，需要占用空间
+    if (!_backup.empty()) {
+        _receiver_free_space =
+            static_cast<uint16_t>(abs_ackno + static_cast<uint64_t>(window_size) -
+                                  unwrap(_backup.front().header().seqno, _isn, _next_seqno) - BytesInFlight);
     }
+
+    // 没有还在传输的字节，就停止计时器
+    if (!BytesInFlight)
+        _timer_running = false;
+
+    // 重新fill
     fill_window();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
-    if (!Timer.IsItRuning())
+    if (!_timer_running)
         return;
-    Timer.RunOutTime(ms_since_last_tick);
 
-    // 如果时间耗尽
-    if (Timer.TheTimeLeft() <= 0 && Timer.IsItRuning()) {
-        // 超时重传
-        if (ConsecutiveRetransmissions != TCPConfig::MAX_RETX_ATTEMPTS)
-            Retransmission();
+    // 维护时间
+    _time_elapsed += ms_since_last_tick;
 
-        if (!_window_size_is_0) {
-            // 出现连续重传
-            IncrementRetransmission();
-            // 加倍RTO
-            Timer.DoubleRTo();
+    // 重传
+    if (_time_elapsed >= _rto) {
+        _segments_out.push(_backup.front());
+        if (_receiver_window_size || _backup.front().header().syn) {
+            ++ConsecutiveRetransmissions;
+            _rto <<= 1;
         }
-        // 计时器RESET
-        Timer.TimerInit();
+        _time_elapsed = 0;
     }
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return ConsecutiveRetransmissions; }
 
 void TCPSender::send_empty_segment() {
-    TCPSegment tcpsegment;
-
-    tcpsegment.header().seqno = wrap(_next_seqno, _isn);
-
-    // 放入发送队列
-    _segments_out.push(tcpsegment);
-}
-void TCPSender::SendCommonSegment(TCPSegment &segment) {
-    // 计算当前报文段序号
-    segment.header().seqno = wrap(_next_seqno, _isn);
-
-    // 维护序列号和未到达序号数
-    _next_seqno += segment.length_in_sequence_space();
-    BytesInFlight += segment.length_in_sequence_space();
-
-    // 塞入发送队列和备份队列
-    _segments_out.push(segment);
-    _backup.push(segment);
-
-    // 启动计时器
-    if (!Timer.IsItRuning())
-        Timer.TimerInit();
+    TCPSegment seg;
+    seg.header().seqno = wrap(_next_seqno, _isn);
+    _segments_out.push(seg);
 }
 
-/*
-6 ac
+// 判断ack是否合法
+bool TCPSender::_ack_valid(uint64_t abs_ackno) {
+    if (_backup.empty())
+        return abs_ackno <= _next_seqno;
+    return abs_ackno <= _next_seqno && abs_ackno >= unwrap(_backup.front().header().seqno, _isn, _next_seqno);
+}
 
-所有发送 和 重传函数 都要启动计时器(如果没有启动)
+//  发送正常报文段
+void TCPSender::SendCommonSegment(TCPSegment &seg) {
+    seg.header().seqno = wrap(_next_seqno, _isn);
 
-如果所有数据都被发送，需要停止计时器
+    // 维护对应值
+    _next_seqno += seg.length_in_sequence_space();
+    BytesInFlight += seg.length_in_sequence_space();
 
-*/
+    if (SYNSET)
+        _receiver_free_space -= seg.length_in_sequence_space();
+    
+    // 放入输出和备份队列 
+    _segments_out.push(seg);
+    _backup.push(seg);
+
+    if (!_timer_running) {
+        _timer_running = true;
+        _time_elapsed = 0;
+    }
+}
